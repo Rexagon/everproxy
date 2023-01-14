@@ -1,0 +1,30 @@
+[package]
+name = "everproxy"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "server"
+path = "src/server.rs"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3" }
+everscale-network = "0.4"
+everscale-crypto = "0.1"
+hyper-reverse-proxy = "0.5"
+tokio = { version = "1", features = ["full"] }
+hyper = { version = "0.14", features = ["full"] }
+rand = "0.8"
+public-ip = "0.2"
+tl-proto = "0.3"
+futures = "0.3"
+hex = "0.4"
+
+global-config = { git = "https://github.com/broxus/ton-indexer" }
