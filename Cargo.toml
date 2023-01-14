@@ -28,3 +28,11 @@ futures = "0.3"
 hex = "0.4"
 
 global-config = { git = "https://github.com/broxus/ton-indexer" }
+#ton-indexer = { git = "https://github.com/broxus/ton-indexer" }
+nekoton = { git = "https://github.com/broxus/nekoton" }
+nekoton-transport = { git = "https://github.com/broxus/nekoton", features = [
+    "gql_transport",
+    "jrpc_transport",
+] }
+
+ton_types = { git = "https://github.com/broxus/ton-labs-types" }

@@ -10,6 +10,8 @@ use global_config::GlobalConfig;
 use hyper::server::conn::AddrStream;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server, StatusCode};
+use nekoton::core::dens::Dens;
+use nekoton::utils::SimpleClock;
 
 use shared::*;
 
@@ -24,6 +26,7 @@ struct Proxy {
     rldp: Arc<rldp::Node>,
     overlays: Arc<overlay::Node>,
     proxy_overlay: Arc<overlay::Overlay>,
+    dens: Dens,
 }
 
 impl Proxy {
@@ -68,12 +71,25 @@ impl Proxy {
         let (proxy_overlay, _) =
             overlays.add_public_overlay(&overlay_id, overlay::OverlayOptions::default());
 
+        let jrpc_client =
+            nekoton_transport::jrpc::JrpcClient::new("https://jrpc.everwallet.net/rpc")
+                .context("Failed to create transport")?;
+        let transport = Arc::new(nekoton::transport::jrpc::JrpcTransport::new(jrpc_client));
+
+        let dens = Dens::builder(Arc::new(SimpleClock), transport)
+            .register(
+                &"0:a7d0694c025b61e1a4a846f1cf88980a5df8adf737d17ac58e35bf172c9fca29".parse()?,
+            )
+            .await?
+            .build();
+
         Ok(Self {
             adnl,
             dht,
             rldp,
             overlays,
             proxy_overlay,
+            dens,
         })
     }
 
@@ -103,12 +119,9 @@ impl Proxy {
     }
 
     pub async fn handle_domain(&self, host: &str, req: Request<Body>) -> Result<Response<Body>> {
-        let adnl_addr: Vec<u8> = hex::decode(host)?;
-        let adnl_addr: [u8; 32] = adnl_addr.as_slice().try_into()?;
-
         let body = hyper::body::to_bytes(req.into_body()).await?;
 
-        let response = self.redirect(&adnl_addr, body.as_ref()).await?;
+        let response = self.redirect(&host, body.as_ref()).await?;
 
         Ok(Response::builder()
             .status(StatusCode::OK)
@@ -116,11 +129,17 @@ impl Proxy {
             .unwrap())
     }
 
-    pub async fn redirect(&self, adnl_addr: &[u8; 32], req: &[u8]) -> Result<Vec<u8>> {
+    pub async fn redirect(&self, host: &str, req: &[u8]) -> Result<Vec<u8>> {
         const TIMEOUT: u64 = 2; // sec
 
-        let peer_id = adnl::NodeIdShort::new(*adnl_addr);
-        tracing::info!("Redirecting to {peer_id}");
+        let peer_id = match self.dens.try_resolve(&format!("{host}{DOMAIN}"), 1).await? {
+            nekoton::core::dens::ResolvedValue::Found(data) => {
+                let addr = *ton_types::SliceData::from(data).get_next_hash()?.as_slice();
+                adnl::NodeIdShort::new(addr)
+            }
+            _ => anyhow::bail!("Failed to resolve domain"),
+        };
+        tracing::info!("Resolved ADNL: {peer_id}");
 
         let (addr, peer_id_full) = self.dht.find_address(&peer_id).await?;
         self.adnl.add_peer(
