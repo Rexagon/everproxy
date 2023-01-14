@@ -51,6 +51,8 @@ async fn main() -> Result<()> {
     const DHT_KEY_TAG: usize = 1;
     const OVERLAY_KEY_TAG: usize = 2;
 
+    // TODO: add config params
+
     let my_addr = resolve_public_ip(31000).await?;
 
     let dht_key = ed25519::SecretKey::generate(&mut rand::thread_rng());
@@ -89,6 +91,7 @@ async fn main() -> Result<()> {
 
     tracing::info!(peer_id = %overlay_key.id());
 
+    // TODO: extend content factory (fs / redirect tcp / ...)
     let hoster = Arc::new(Hoster {
         content: "Hello from ever".to_owned().into_bytes(),
     });
